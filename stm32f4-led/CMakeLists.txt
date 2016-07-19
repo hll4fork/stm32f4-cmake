@@ -19,18 +19,18 @@ cmake_minimum_required(VERSION 2.8)
 enable_language(ASM)
 
 # build type -- debug
-set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_BUILD_TYPE Debug)
 
 # find stm32's package -- library and header files
-#find_package(CMSIS REQUIRED)
+find_package(CMSIS REQUIRED)
 #find_package(STM32HAL COMPONENTS gpio REQUIRED)
 
 # include cmsis and hal libraries's header files and app's header file
-# include_directories(
-#     ${CMAKE_CURRENT_SOURCE_DIR}
-#     ${CMSIS_INCLUDE_DIRS}
-#     ${STM32HAL_INCLUDE_DIR}
-# )
+include_directories(
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMSIS_INCLUDE_DIRS}
+    #${STM32HAL_INCLUDE_DIR}
+)
 
 # app's source file
 set(PROJECT_SOURCES
@@ -41,5 +41,5 @@ set(PROJECT_SOURCES
 
 add_executable(${CMAKE_PROJECT_NAME} ${PROJECT_SOURCES} ${CMSIS_SOURCES} ${STM32HAL_SOURCES})
 
-#STM32_SET_TARGET_PROPERTIES(${CMAKE_PROJECT_NAME})
+STM32_LINKER_SCRIPT(${CMAKE_PROJECT_NAME})
 STM32_ADD_HEX_BIN_TARGETS(${CMAKE_PROJECT_NAME})

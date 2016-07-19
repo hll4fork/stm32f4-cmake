@@ -5,9 +5,6 @@
 # include cmake module --> CmakeForceCompiler.cmake
 include(CMakeForceCompiler)
 
-# chip familes
-set(STM32_SUPPORTED_FAMILIES F1 F4 CACHE INTERNAL "stm32 supported families")
-
 # config toolchain's path
 if(NOT TOOLCHAIN_PREFIX) # toolchain path 
     set(TOOLCHAIN_PREFIX "/usr")
@@ -19,30 +16,10 @@ if(NOT TARGET_TRIPLET)  # toolchain's prefix name
     message(STATUS "No target triplet specified, using default: " ${TARGET_TRIPLET})
 endif()
 
-# get chip's infomation
-if(NOT STM32_FAMILY)
-    message(STATUS "No STM32_FAMILY specified, trying to get it from STM32_CHIP")
-    if(NOT STM32_CHIP)
-        set(STM32_FAMILY "F1" CACHE INTERNAL "stm32 family")
-        message(STATUS "Neither STM32_FAMILY nor STM32_CHIP specified, using default")
-    else()
-        string(REGEX REPLACE "^[sS][tT][mM]32([fF][14]).+$" "\\1" STM32_FAMILY ${STM32_CHIP})
-        string(TOUPPER ${STM32_FAMILY} STM32_FAMILY)    # convert to upper
-        message(STATUS "Selected STM32 family: ${STM32_FAMILY}")
-    endif()
-endif()
-
-# match supported family or not 
-string(TOUPPER ${STM32_FAMILY} STM32_FAMILY)
-list(FIND STM32_SUPPORTED_FAMILIES ${STM32_FAMILY} FAMILY_INDEX)
-if(FAMILY_INDEX EQUAL -1)
-    message(FATAL_ERROR "Invalid/unsupported STM32 family: $STM32_FAMILY}")
-endif()
-
 # toolchain excutable's path and comiler's libraries files 
 set(TOOLCHAIN_BIN_DIR ${TOOLCHAIN_PREFIX}/bin)
-set(TOOLCHAIN_INC_DIR ${TOOLCHAIN_PREFIX}/${TARGET_TRIPLET}/include)
-set(TOOLCHAIN_LIB_DIR ${TOOLCHAIN_PREFIX}/${TARGET_TRIPLET}/lib)
+set(TOOLCHAIN_INC_DIR ${TOOLCHAIN_PREFIX}/lib/${TARGET_TRIPLET}/include)
+set(TOOLCHAIN_LIB_DIR ${TOOLCHAIN_PREFIX}/lib/${TARGET_TRIPLET}/lib)
 
 # set build target 
 set(CMAKE_SYSTEM_NAME Generic)
@@ -77,7 +54,24 @@ set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)    # just use host system program t
 set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)     # use cross compiler's libraries only
 set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)     # use cross compiler's header files only
 
-# functions and macros
+# set f4 compiler flags
+set(CMAKE_C_FLAGS "--specs=rdimon.specs -mthumb -fno-builtin -mcpu=cortex-m4 -mfpu=fpv4-sp-d16 -mfloat-abi=softfp -Wall -std=gnu99 -ffunction-sections -fdata-sections -fomit-frame-pointer -mabi=aapcs -fno-unroll-loops -ffast-math -ftree-vectorize" CACHE INTERNAL "c compiler flags")
+set(CMAKE_CXX_FLAGS "-mthumb -fno-builtin -mcpu=cortex-m4 -mfpu=fpv4-sp-d16 -mfloat-abi=softfp -Wall -std=c++11 -ffunction-sections -fdata-sections -fomit-frame-pointer -mabi=aapcs -fno-unroll-loops -ffast-math -ftree-vectorize" CACHE INTERNAL "cxx compiler flags")
+set(CMAKE_ASM_FLAGS "-mthumb -mcpu=cortex-m4 -mfpu=fpv4-sp-d16 -mfloat-abi=softfp -x assembler-with-cpp" CACHE INTERNAL "asm compiler flags")
+
+set(CMAKE_EXE_LINKER_FLAGS "-Wl,-Map=${CMAKE_PROJECT_NAME}.map -Wl,--gc-sections -mthumb -mcpu=cortex-m4 -mfpu=fpv4-sp-d16 -mfloat-abi=softfp -mabi=aapcs" CACHE INTERNAL "executable linker flags")
+set(CMAKE_MODULE_LINKER_FLAGS "-mthumb -mcpu=cortex-m4 -mfpu=fpv4-sp-d16 -mfloat-abi=softfp -mabi=aapcs" CACHE INTERNAL "module linker flags")
+set(CMAKE_SHARED_LINKER_FLAGS "-mthumb -mcpu=cortex-m4 -mfpu=fpv4-sp-d16 -mfloat-abi=softfp -mabi=aapcs" CACHE INTERNAL "shared linker flags")
+
+# set up stm32cub's definitions 
+add_definitions(-DSTM32F429xx)
+
+# set linker script
+function(STM32_LINKER_SCRIPT TARGET)
+    get_target_property(TARGET_LD_FLAGS ${TARGET} LINK_FLAGS)
+    set(TARGET_LD_FLAGS "-T${CMAKE_CURRENT_SOURCE_DIR}/STM32F429ZITx_FLASH.ld")
+    set_target_properties(${TARGET} PROPERTIES LINK_FLAGS ${TARGET_LD_FLAGS})
+endfunction()
 
 # create bin and hex file from elf target
 function(STM32_ADD_HEX_BIN_TARGETS TARGET)
@@ -93,31 +87,3 @@ function(STM32_ADD_HEX_BIN_TARGETS TARGET)
                        DEPENDS ${TARGET}
                        COMMAND ${CMAKE_OBJCOPY} -Obinary ${FILENAME} ${FILENAME}.bin)     
 endfunction()
-
-# include specified chip family
-string(TOLOWER ${STM32_FAMILY} STM32_FAMILY_LOWER)
-include(gcc_stm32${STM32_FAMILY_LOWER})
-
-# set linker script
-set(TARGET_LD_FLAGS "-T${CMAKE_CURRENT_SOURCE_DIR}/STM32F429ZITx_FLASH.ld")
-
-# set HSE value
-function(STM32_SET_HSE_VALUE TARGET STM32_HSE_VALUE)
-    get_target_property(TARGET_DEFS ${TARGET} COMPILE_DEFINITIONS)
-    if(TARGET_DEFS)
-        set(TARGET_DEFS "HSE_VALUE=${STM32_HSE_VALUE};${TARGET_DEFS}")
-    else()
-        set(TARGET_DEFS "HSE_VALUE=${STM32_HSE_VALUE}")
-    endif()
-    set_target_properties(${TARGET} PROPERTIES COMPILE_DEFINITIONS "${TARGET_DEFS}")
-endfunction()
-
-macro(STM32_GENERATE_LIBRARIES NAME SOURCES LIBRARIES)
-    string(TOLOWER ${STM32_FAMILY} STM32_FAMILY_LOWER)
-    foreach(CHIP_TYPE ${STM32_CHIP_TYPES})
-        string(TOLOWER ${CHIP_TYPE} CHIP_TYPE_LOWER)
-        list(APPEND ${LIBRARIES} ${NAME}_${STM32_FAMILY_LOWER}_${CHIP_TYPE_LOWER})
-        add_library(${NAME}_${STM32_FAMILY_LOWER}_${CHIP_TYPE_LOWER} ${SOURCES})
-        STM32_SET_CHIP_DEFINITIONS(${NAME}_${STM32_FAMILY_LOWER}_${CHIP_TYPE_LOWER} ${CHIP_TYPE})
-    endforeach()
-endmacro()
