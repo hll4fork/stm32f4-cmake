@@ -23,20 +23,20 @@ set(CMAKE_BUILD_TYPE Debug)
 
 # find stm32's package -- library and header files
 find_package(CMSIS REQUIRED)
-#find_package(STM32HAL COMPONENTS gpio REQUIRED)
+find_package(STM32HAL COMPONENTS gpio REQUIRED)
 
 # include cmsis and hal libraries's header files and app's header file
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMSIS_INCLUDE_DIRS}
-    #${STM32HAL_INCLUDE_DIR}
+    ${STM32HAL_INCLUDE_DIR}
 )
 
 # app's source file
 set(PROJECT_SOURCES
     main.c
-    #stm32f429i_discovery.c
-    #stm32f4xx_it.c
+    stm32f429i_discovery.c
+    stm32f4xx_it.c
 )
 
 add_executable(${CMAKE_PROJECT_NAME} ${PROJECT_SOURCES} ${CMSIS_SOURCES} ${STM32HAL_SOURCES})
